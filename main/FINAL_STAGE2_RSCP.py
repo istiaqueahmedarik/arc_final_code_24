@@ -184,7 +184,11 @@ def obstacleAvoidance():
         neutral_speed = 1500
         forward_speed = 1750  
         backward_speed = 1250  
-        front_distance = lidar_dist[0]
+        front_distance = lidar_dist[179]
+        for i in range(170,179,1):
+            front_distance = min(front_distance,lidar_dist[i])
+            front_distance = min(front_distance,lidar_dist[-1*i])
+
         # left_distance =  lidar_dist[-90]
         left_corner_distance = lidar_dist[-180+45]
         
@@ -229,26 +233,22 @@ def obstacleAvoidance():
         print(left_distance,right_distance,left_corner_distance,right_corner_distance)
         l_speed = neutral_speed
         r_speed = neutral_speed
-        # if(lidar_dist[0]<1):
-        #     if(left_distance>right_distance):
-        #         # publish_custom_data((1800,1100))
-        #         pub1.publish("[01700,11200]")
-        #         time.sleep(0.5)
-        #         pub1.publish("[01500,11500]")
-        #         time.sleep(0.5)
-        #         rospy.loginfo("left_distance>right_distance")
+        if(front_distance<1):
+            if(left_distance>right_distance):
+                # publish_custom_data((1800,1100))
+                pub1.publish("[01700,11200]")
                 
-        #         return
-        #     else:
-        #         # publish_custom_data((1100,1800))
-        #         pub1.publish("[01200,11700]")
-        #         time.sleep(.5)
-        #         pub1.publish("[01500,11500]")
-        #         time.sleep(0.5)
-        #         rospy.loginfo("left_distance>right_distance_else")
+                rospy.loginfo("left_distance>right_distance")
+                
+                return
+            else:
+                # publish_custom_data((1100,1800))
+                pub1.publish("[01200,11700]")
+                
+                rospy.loginfo("left_distance>right_distance_else")
 
 
-        #         return
+                return
         if  left_corner_distance < 1.3 and right_corner_distance >1.3:
             l_speed = 1700
             r_speed = 1200
@@ -259,7 +259,7 @@ def obstacleAvoidance():
             rospy.loginfo("right corner check problem")
 
         elif( left_corner_distance>1.8 and right_corner_distance>1.8):
-            if left_corner_distance < right_corner_distance:
+            if left_corner_distance > right_corner_distance:
                 speed_diff = int((right_corner_distance - left_corner_distance) * 50)  
                 l_speed = forward_speed
                 r_speed = max(neutral_speed, forward_speed - speed_diff)
@@ -272,7 +272,7 @@ def obstacleAvoidance():
             rospy.loginfo("managing corner check problem")
 
             
-        elif left_distance < right_distance:
+        elif left_distance > right_distance:
             speed_diff = int((right_distance - left_distance) * 50)  
             l_speed = forward_speed
             r_speed = max(neutral_speed, forward_speed - speed_diff)
@@ -343,15 +343,15 @@ def aruco_path_for_one(tuple):
         OBSTACLE_AVOIDANCE_FLAG = True
         return
 
-    if(dis<8.0):
+    if(dis<7.0):
         
         # publish_custom_data((1200,1800));
         rospy.loginfo('here is the issue')
-        pub1.publish("[01200,11800]")
+        pub1.publish("[01700,11300]")
 
-        # time.sleep(1)
-        # pub1.publish("[01500,01500]");
-        # time.sleep(1)
+        time.sleep(1)
+        pub1.publish("[01500,01500]");
+        time.sleep(1)
         return
     print(dis, x, id)
     if(dis<0.45):
@@ -385,10 +385,10 @@ def aruco_path_for_one(tuple):
         # After processing, publish custom data
         # publish_custom_data((left, right))
         pub1.publish("[0"+str(left)+",1"+str(right)+"]")
-        # time.sleep(0.5)
-        # if((left==1700 and right==1300) or (left==1300 and right==1700)):
-        #     # time.sleep(0.5)
-        #     pub1.publish("[01500,11500]")
+        time.sleep(0.5)
+        if((left==1700 and right==1300) or (left==1300 and right==1700)):
+            time.sleep(0.5)
+            pub1.publish("[01500,11500]")
 
 def map_(x):
     return (abs(x) * 200) / 350
@@ -405,7 +405,7 @@ def aruco_path_for_two(tuple1, tuple2):
     x2 = float(tuple2[1])
     id2 = int(tuple2[0])
     
-    if(min(dis1,dis2)>=8.0):
+    if(min(dis1,dis2)>=7.0):
         rospy.loginfo("8 er beshi distance so ektar dike agaitese")
         if(findOnce):
             rospy.loginfo("2 ta aruco ekbar paise so theme gese")
@@ -458,9 +458,9 @@ def aruco_path_for_two(tuple1, tuple2):
     # After processing, publish custom data
     # publish_custom_data((left, right))
     pub1.publish("[0"+str(left)+",1"+str(right)+"]")
-    # if((left==1700 and right==1300) or (left==1300 and right==1700)):
-    #         time.sleep(0.5)
-    #         pub1.publish("[01500,11500]")
+    if((left==1700 and right==1300) or (left==1300 and right==1700)):
+            time.sleep(0.5)
+            pub1.publish("[01500,11500]")
 
 last_waypoint = None
 
@@ -507,42 +507,50 @@ def aruco_detect_callback(msg):
 def lidar_callback(msg):
     print(OBSTACLE_AVOIDANCE_FLAG)
     global entrance
-    global lidar_dist
+    # global lidar_dist
     for i, distance in enumerate(msg.ranges):
         degree = math.degrees(msg.angle_min + i * msg.angle_increment)
         lidar_dist[round(degree)] = distance
     if OBSTACLE_AVOIDANCE_FLAG:
         obstacleAvoidance()
         return
-    if(ar_move==True):
-        rospy.loginfo("check if aruco is in front")
-        print(tups)
+
+    
+
+def ar_part():
+    if(OBSTACLE_AVOIDANCE_FLAG):
+        return
+    
+    rospy.loginfo("check if aruco is in front")
+    print(tups)
+    time.sleep(1)
+    if(time.time()-lastArCodeSearch>3 or len(tups)==0):
+        rospy.loginfo("rotating")
+        pub1.publish("[01700,11300]")
         time.sleep(1)
-        if(time.time()-lastArCodeSearch>2):
-            rospy.loginfo("rotating")
-            pub1.publish("[01700,11300]")
-            time.sleep(1)
-            
-            pub1.publish("[01500,11500]")
-            time.sleep(1)
-            pass
-        else:
-            if(len(tups)==2):
-                rospy.loginfo("find two aruco so try to follow it")
-                aruco_path_for_two(tups[0],tups[1])
-                tups.clear()
-            elif(len(tups)==1):
-                rospy.loginfo("find one move to that direction")
-                aruco_path_for_one(tups[0]);
-                print(tups[0])
-                tups.clear();
+        
+        pub1.publish("[01500,11500]")
+        time.sleep(1)
+        pass
+    else:
+        localTups = tups
+        if(len(localTups)==2):
+            rospy.loginfo("find two aruco so try to follow it")
+            aruco_path_for_two(localTups[0],localTups[1])
+            tups.clear()
+        elif(len(localTups)==1):
+            rospy.loginfo("find one move to that direction")
+            aruco_path_for_one(localTups[0]);
+            print(localTups[0])
+            tups.clear();
+    ar_part()
         
             
 
     
-        
 
 def main():
+    rospy.on_shutdown(safe)
     global latitude, longitude, yaml_dict, current_stage, arm_status, last_waypoint, stage_2_lat, stage_2_lon
 
     rospy.Subscriber('/mavros/global_position/global', NavSatFix, gps_callback)
@@ -608,7 +616,9 @@ def main():
             print(f"Received Aruco Tag: {tag_id}, Dictionary: {dictionary}")
             global ar_move
             ar_move = True
+            
             send_message(ser, 0x00, b'')
+            ar_part()
         elif msg_id == 0x01:
             armed = struct.unpack('>B', body)[0]
             arm_status = bool(armed)

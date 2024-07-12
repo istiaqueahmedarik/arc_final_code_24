@@ -140,7 +140,7 @@ def get_message_data(choice):
         return 0x0A, yaml_dict.encode('utf-8')
 
 def main():
-    port = '/dev/ttyUSB0'  # Replace with your serial port
+    port = '/dev/ttyUSB1'  # Replace with your serial port
     baud_rate = 115200  # Replace with your baud rate
     
     # Open serial port
