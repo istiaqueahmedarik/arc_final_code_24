@@ -99,7 +99,7 @@ def joystick():
 
     print("Number of axes:", axes)
     print("Number of buttons:", buttons)
-
+    l_state = 'on'
     while True:
         global open
         global open1
@@ -266,12 +266,7 @@ def joystick():
         elif(flag3[9]==0):
             flag3[9] = 1
             s+= "9"+str(1500)+","
-        if(light!=1500):
-            flag3[10] = 0
-            s+= "A"+str(light)+","
-        elif(flag3[10]==0):
-            flag3[10] = 1
-            s+= "A"+str(1500)+","
+     
         if(up_down!=1500):
             flag3[11] = 0
             s+= "B"+str(up_down)+","
@@ -349,6 +344,17 @@ def joystick():
         # s+= "D"+str(open)+","
         # s+= "E"+str(open1)
         # s+="]"
+        if(light!=1500):
+            if(l_state=='on'):
+                l_state = 'ff'
+
+                emit_with_retry('relay', 'ff', namespace='/')
+        
+            else:
+                l_state = 'on'
+                emit_with_retry('relay', 'on', namespace='/')
+
+        
         print(arm)
         emit_with_retry('armMsg', 'noarm' if arm == 2000 else 'arm', namespace='/')
         if arm == 2000:

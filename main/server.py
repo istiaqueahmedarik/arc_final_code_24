@@ -36,6 +36,7 @@ rospy.init_node('server', anonymous=True)
 
 pub = rospy.Publisher('joystick', String, queue_size=5)
 pub1 = rospy.Publisher('wifi', String, queue_size=5)
+relay_pub = rospy.Publisher('relay', String, queue_size=5)
 rospy.Rate(2500)
 current_mode = "manual"
 @socketio.on('connect')
@@ -61,6 +62,11 @@ def joystick_data(data):
     rospy.loginfo(f"Joystick data recieved {data}")
     pub.publish(data)
     pub1.publish('connected');
+
+@socketio.on('relay')
+def relay(data):
+    print(data)
+    relay_pub.publish(data)
 
 
 def main():

@@ -13,11 +13,14 @@
 #include <MultiStepper.h>
 #include <sbus.h>
 #include "DHT.h"
-#include <FastLED.h>
-#define NUM_LEDS 63
-CRGB leds[NUM_LEDS];
+#include <Adafruit_NeoPixel.h>
+
+// Define the number of LEDs and the data pin
+#define NUM_LEDS 60
+#define DATA_PIN 13
 #define DHTPIN 23     // Define the data pin
 #define DHTTYPE DHT21 // DHT 21 (AM2301)
+Adafruit_NeoPixel strip = Adafruit_NeoPixel(NUM_LEDS, DATA_PIN, NEO_GRB + NEO_KHZ800);
 
 DHT dht(DHTPIN, DHTTYPE);
 
@@ -52,6 +55,21 @@ float calculateWheelAngle(long count)
     float angle = (steps / STEPS_PER_REV) * 360.0;        // Calculate the wheel angle in degrees
     return angle;
 }
+
+void fillStrip(uint32_t color);
+void showRed();
+
+void showGreen();
+
+void showBlue();
+void showYellow();
+
+void showCyan();
+
+void showMagenta();
+void showWhite();
+
+void turnOff();
 
 MultiStepper stepperss;
 MultiStepper steppers;
@@ -107,7 +125,8 @@ const int tt = 50;
 
 long positions[2];
 
-const int t = 200;
+const int t = 100;
+int limit_pin = 0;
 
 ros::NodeHandle nh;
 unsigned long lastJoyStickCtrlTime = 0;
@@ -224,6 +243,63 @@ void tiltServoRc(int tiltval)
     }
 }
 
+void dropCallback(const std_msgs::String &msg)
+{
+    box1(2000);
+}
+void wifiCallback(const std_msgs::String &msg)
+{
+    if (msg.data[0] == 'c')
+    {
+        wifi = true;
+    }
+    else
+    {
+        wifi = false;
+    }
+}
+
+const int relayPin = 6;
+
+void relayCallback(const std_msgs::String &msg)
+{
+    if (msg.data[0] == 'o')
+    {
+        digitalWrite(relayPin, HIGH);
+    }
+    else
+    {
+        digitalWrite(relayPin, LOW);
+    }
+}
+
+// Function to fill the strip with a given color
+
+void colorCallback(const std_msgs::String &msg)
+{
+    if (msg.data[0] == 'w')
+    {
+        showWhite();
+    }
+    else if (msg.data[0] == 'b')
+    {
+        turnOff();
+    }
+    else if (msg.data[0] == 'r')
+    {
+        showRed();
+    }
+    else if (msg.data[0] == 'g')
+    {
+        showGreen();
+    }
+    else if (msg.data[0] == 'y')
+    {
+        showYellow();
+    }
+}
+bool red_once_onJoystick = false;
+bool greenOnce_joystick = false;
 void joystickCallback(const std_msgs::String &msg)
 {
     std::vector<int> arr(20, 1500);
@@ -233,6 +309,7 @@ void joystickCallback(const std_msgs::String &msg)
     }
     else
     {
+
         lastJoyStickCtrlTime = millis();
 
         std::string input = msg.data;
@@ -261,17 +338,41 @@ void joystickCallback(const std_msgs::String &msg)
     }
 
     // Now arr contains the parsed values.
-    int SPEED = 80;
+    int SPEED = 70;
     if (arr[8] == 2000)
-        SPEED = 70;
+        SPEED = 80;
 
     ST.motor(MOTOR2, constrain(map(arr[0], 1000, 2000, -SPEED, SPEED), -SPEED, SPEED));
     ST.motor(MOTOR1, constrain(map(arr[1], 1000, 2000, -SPEED, SPEED), -SPEED, SPEED));
 
     if (arr.size() >= 4)
     {
-        ST_ARM.motor(1, constrain(map(arr[2], 1000, 2000, 100, -100), -100, 100));
-        ST_ARM.motor(2, constrain(map(arr[3], 1000, 2000, 100, -100), -100, 100));
+        limit_pin = digitalRead(14);
+
+        if (limit_pin == 0)
+        {
+            ST_ARM.motor(1, constrain(map(arr[2], 1000, 2000, 100, -100), -100, 100));
+            ST_ARM.motor(2, constrain(map(arr[3], 1000, 2000, 100, -100), -100, 100));
+        }
+        else
+        {
+            if (arr[2] > 1500)
+            {
+                ST_ARM.motor(1, 0);
+            }
+            else
+            {
+                ST_ARM.motor(1, constrain(map(0, 1000, 2000, 100, -100), -100, 100));
+            }
+            if (arr[3] > 1500)
+            {
+                ST_ARM.motor(2, 0);
+            }
+            else
+            {
+                ST_ARM.motor(2, constrain(map(0, 1000, 2000, 100, -100), -100, 100));
+            }
+        }
     }
 
     if (arr.size() >= 5)
@@ -319,108 +420,29 @@ void joystickCallback(const std_msgs::String &msg)
         tiltServo(arr[12]);
     }
 
+    if (msg.data[0] != '[')
+    {
+        if (!red_once_onJoystick)
+        {
+
+            showRed();
+            red_once_onJoystick = true;
+            greenOnce_joystick = false;
+        }
+    }
+    else
+    {
+
+        if (!greenOnce_joystick)
+        {
+            greenOnce_joystick = true;
+            showGreen();
+            red_once_onJoystick = false;
+        }
+    }
+
     nh.spinOnce();
     delay(0.1);
-}
-void dropCallback(const std_msgs::String &msg)
-{
-    box1(2000);
-}
-void wifiCallback(const std_msgs::String &msg)
-{
-    if (msg.data[0] == 'c')
-    {
-        wifi = true;
-    }
-    else
-    {
-        wifi = false;
-    }
-}
-void white()
-{
-    for (int i = 0; i < 63; i++)
-    {
-        leds[i] = CRGB::White;
-        FastLED.show();
-    }
-}
-void black()
-{
-    for (int i = 0; i < 63; i++)
-    {
-        leds[i] = CRGB::Black;
-        FastLED.show();
-    }
-}
-void red()
-{
-    for (int i = 0; i < 63; i++)
-    {
-        leds[i] = CRGB(255, 0, 0);
-        FastLED.show();
-    }
-}
-void blue()
-{
-    for (int i = 0; i < 63; i++)
-    {
-        leds[i] = CRGB(0, 255, 0);
-        FastLED.show();
-    }
-}
-void yellow()
-{
-    for (int i = 0; i < 63; i++)
-    {
-        leds[i] = CRGB(255, 0, 255);
-        FastLED.show();
-    }
-}
-void green()
-{
-    for (int i = 0; i < 63; i++)
-    {
-        leds[i] = CRGB(0, 0, 255);
-        FastLED.show();
-    }
-}
-void colorCallback(const std_msgs::String &msg)
-{
-    if (msg.data[0] == 'w')
-    {
-        white();
-    }
-    else if (msg.data[0] == 'b')
-    {
-        black();
-    }
-    else if (msg.data[0] == 'r')
-    {
-        red();
-    }
-    else if (msg.data[0] == 'g')
-    {
-        green();
-    }
-    else if (msg.data[0] == 'y')
-    {
-        yellow();
-    }
-}
-
-const int relayPin = 12;
-
-void relayCallback(const std_msgs::String &msg)
-{
-    if (msg.data[0] == 'o')
-    {
-        digitalWrite(relayPin, HIGH);
-    }
-    else
-    {
-        digitalWrite(relayPin, LOW);
-    }
 }
 
 ros::Subscriber<std_msgs::String> joystickSub("joystick", &joystickCallback);
@@ -431,17 +453,48 @@ std_msgs::String str_msg;
 ros::Publisher pub1("dht", &str_msg);
 
 ros::Subscriber<std_msgs::String> relaySub("relay", &relayCallback);
-
+void bangladeshFlag()
+{
+    // GRG
+    for (int i = 0; i < NUM_LEDS; i++)
+    {
+        if (i < 20)
+        {
+            strip.setPixelColor(i, strip.Color(0, 0, 255));
+        }
+        else if (i < 40)
+        {
+            strip.setPixelColor(i, strip.Color(255, 0, 0));
+        }
+        else
+        {
+            strip.setPixelColor(i, strip.Color(0, 0, 255));
+        }
+    }
+    strip.show();
+}
 void setup()
 {
-    FastLED.addLeds<NEOPIXEL, 13>(leds, NUM_LEDS);
-    FastLED.setBrightness(50);
+    // FastLED.addLeds<NEOPIXEL, 13>(leds, NUM_LEDS);
+    // FastLED.setBrightness(50);
+    strip.begin();
+    strip.show(); // Initialize all pixels to 'off'
+    strip.setBrightness(50);
 
     dht.begin();
+    bangladeshFlag();
     pinMode(relayPin, OUTPUT);
-    digitalWrite(relayPin, LOW);
+    digitalWrite(relayPin, HIGH);
     nh.getHardware()->setBaud(115200);
     nh.advertise(pub1);
+    pinMode(14, INPUT_PULLUP);
+    // for (int i = 0; i < 100; i++)
+    // {
+    //     digitalWrite(relayPin, HIGH);
+    //     delay(2);
+    //     digitalWrite(relayPin, LOW);
+    //     delay(2);
+    // }
     //  int timeout_ms = 100;
 
     // Serial.setTimeout(timeout_ms);
@@ -470,7 +523,7 @@ void setup()
     nh.subscribe(wifiSub);
     nh.subscribe(dropSub);
     nh.subscribe(colorSub);
-    nh.subsrcibe(relaySub);
+    nh.subscribe(relaySub);
     // nh.subscribe(pxstateSub);
     // nh.subscribe(vstateSub);
     // nh.advertise(vals);
@@ -478,6 +531,55 @@ void setup()
 
     nh.spinOnce();
     delay(0.5);
+}
+
+void fillStrip(uint32_t color)
+{
+    for (int i = 0; i < NUM_LEDS; i++)
+    {
+        strip.setPixelColor(i, color);
+    }
+    strip.show();
+}
+
+void showRed()
+{
+    fillStrip(strip.Color(255, 0, 0));
+}
+
+void showGreen()
+{
+    fillStrip(strip.Color(0, 0, 255));
+}
+
+void showBlue()
+{
+    fillStrip(strip.Color(0, 255, 0));
+}
+
+void showYellow()
+{
+    fillStrip(strip.Color(255, 0, 255));
+}
+
+void showCyan()
+{
+    fillStrip(strip.Color(0, 255, 255));
+}
+
+void showMagenta()
+{
+    fillStrip(strip.Color(255, 0, 255));
+}
+
+void showWhite()
+{
+    fillStrip(strip.Color(255, 255, 255));
+}
+
+void turnOff()
+{
+    fillStrip(strip.Color(0, 0, 0));
 }
 
 void readAndPrintDHTValues()
@@ -495,7 +597,7 @@ void readAndPrintDHTValues()
     str_msg.data = (String(temperature) + "," + String(humidity)).c_str();
     if (nh.connected())
         pub1.publish(&str_msg);
-    delay(0.02)
+    delay(0.02);
 }
 
 void handleUtils()
@@ -530,14 +632,30 @@ void controlMotor(int x, int y)
     left_motor = constrain(left_motor, 1000, 2000);
     right_motor = constrain(right_motor, 1000, 2000);
 
-    ST.motor(MOTOR2, constrain(map(left_motor, 1000, 2000, -80, 80), -80, 80));
-    ST.motor(MOTOR1, constrain(map(right_motor, 1000, 2000, -80, 80), -80, 80));
+    ST.motor(MOTOR2, constrain(map(left_motor, 1000, 2000, -70, 70), -70, 70));
+    ST.motor(MOTOR1, constrain(map(right_motor, 1000, 2000, -70, 70), -70, 70));
+}
+
+void safety()
+{
+
+    // handleUtils();
+    // failsafe_bck = tmp
 }
 
 void loop()
 {
     // readAndPrintDHTValues();
-
+    limit_pin = digitalRead(14);
+    // Serial.println(read_pin);
+    if (limit_pin == 1)
+    {
+        safety();
+    }
+    if (nh.connected())
+    {
+        nh.spinOnce();
+    }
     if (!nh.connected() || !wifi)
     {
         get_sbus();
@@ -569,11 +687,11 @@ void stepper_setup()
     steppers.addStepper(stepperL);
     steppers.addStepper(stepperR);
     stepperR.setMaxSpeed(1000);
-    stepperR.setAcceleration(500);
+    stepperR.setAcceleration(1000);
     stepperL.setMaxSpeed(1000);
-    stepperL.setAcceleration(500);
-    stepperR.setSpeed(300);
-    stepperL.setSpeed(300);
+    stepperL.setAcceleration(1000);
+    stepperR.setSpeed(500);
+    stepperL.setSpeed(500);
 
     stepperB.setMaxSpeed(900000);
     stepperB.setAcceleration(1000);
@@ -735,6 +853,7 @@ int last_success = 0;
 int last_fail = 0;
 bool failed = false;
 bool success = false;
+
 void get_sbus()
 {
     if (sbus_rx.Read())
@@ -751,7 +870,7 @@ void get_sbus()
             {
                 if (!failed)
                 {
-                    red();
+                    bangladeshFlag(); // show bangladesh flag
                     failed = true;
                     success = false;
                 }
@@ -769,7 +888,7 @@ void get_sbus()
             return;
         if (!success)
         {
-            green();
+            showGreen();
         }
         success = true;
         failed = false;
@@ -799,14 +918,12 @@ void get_sbus()
                     continue;
                 chVal[i] = 1500;
             }
-            red();
-
             ST_ARM.motor(1, constrain(map(1500, 1000, 2000, 100, -100), -100, 100));
             ST_ARM.motor(2, constrain(map(1500, 1000, 2000, 100, -100), -100, 100));
             chVal[5] = 1500;
             chVal[9] = 1500;
             handleUtils();
-
+            showRed();
             return;
         }
         else
@@ -817,7 +934,7 @@ void get_sbus()
                 tiltpos1 = 75;
                 tilt.write(tiltpos1);
                 disarm = false;
-                green();
+                showGreen();
             }
         }
         chVal[1] = map(data.ch[0], 173, 1810, 1000, 2000);
@@ -876,8 +993,32 @@ void get_sbus()
                 flag4_1 = false;
             }
         }
-        ST_ARM.motor(1, constrain(map(chVal[3], 1000, 2000, 100, -100), -100, 100));
-        ST_ARM.motor(2, constrain(map(chVal[4], 1000, 2000, 100, -100), -100, 100));
+        limit_pin = digitalRead(14);
+        if (limit_pin == 0)
+        {
+            ST_ARM.motor(1, constrain(map(chVal[3], 1000, 2000, 100, -100), -100, 100));
+            ST_ARM.motor(2, constrain(map(chVal[4], 1000, 2000, 100, -100), -100, 100));
+        }
+        else
+        {
+            if (chVal[3] > 1500)
+            {
+                ST_ARM.motor(1, 0);
+            }
+            else
+            {
+                ST_ARM.motor(1, constrain(map(chVal[3], 1000, 2000, 100, -100), -100, 100));
+            }
+            if (chVal[4] > 1500)
+            {
+                ST_ARM.motor(2, 0);
+            }
+            else
+            {
+                ST_ARM.motor(2, constrain(map(chVal[4], 1000, 2000, 100, -100), -100, 100));
+            }
+        }
+
         if (abs(gOn - 2000) <= 3)
         {
             chVal[5] = 2000;
