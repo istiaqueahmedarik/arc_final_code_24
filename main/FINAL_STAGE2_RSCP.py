@@ -24,7 +24,7 @@ crc16 = crcmod.mkCrcFun(0x11021, initCrc=0xFFFF, rev=False, xorOut=0x0000)
 
 latitude = 0
 longitude = 0
-port = '/dev/ttyUSB1'  # Replace with your serial port
+port = '/dev/rscp'  # Replace with your serial port
 baud_rate = 115200  # Replace with your baud rate
 stage_2_lat = 0
 stage_2_lon = 0
@@ -165,7 +165,7 @@ def distance_gps(lat1, lon1, lat2, lon2):
     return R * c
 
 def gps_callback(data):
-    global latitude, longitude
+    global latitude, longitude,stage_2_lat,stage_2_lon
     latitude = data.latitude
     longitude = data.longitude
     if(stage_2_lat!=0 and stage_2_lon!=0 and current_stage==2):
@@ -302,17 +302,17 @@ t0 = time.time()
 
 def waypoint_reached_callback(data):
     global last_waypoint, t0
-    if data.wp_seq == last_waypoint.seq:
-        rospy.loginfo("Last waypoint reached")
-        disarm()
-        t1 = time.time()
-        taken_time = t1 - t0
-        rospy.loginfo(f"Time taken: {taken_time}")
-        message = b''
-        send_message(ser,0x03, b'')
-        if(current_stage==1):
-            pub.publish("drop")
-        t0 = time.time()
+    rospy.loginfo("Last waypoint reached")
+    disarm()
+    t1 = time.time()
+    taken_time = t1 - t0
+    rospy.loginfo(f"Time taken: {taken_time}")
+    message = b''
+    if(current_stage==1):
+        pub.publish("drop")
+    color.publish('green')
+    send_message(ser,0x03, b'')
+    t0 = time.time()
 def waypoint_reached_by_ar():
     global last_waypoint, t0
     rospy.loginfo("Last waypoint reached")
@@ -338,6 +338,36 @@ def aruco_path_for_one(tuple):
     dis = float(tuple[2])
     x = float(tuple[1])
     id = int(tuple[0])
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     if(dis<2):
         OBSTACLE_AVOIDANCE_FLAG = True
         return
@@ -394,8 +424,8 @@ def map_(x):
 def map__(x):
     return (abs(x)*200)/100
 def aruco_path_for_two(tuple1, tuple2):
-    global findOnce
-    rospy.loginfo("2 ta aruco i paise")
+    # global findOnce
+    # rospy.loginfo("2 ta aruco i paise")
     dis1 = float(tuple1[2])
     x1 = float(tuple1[1])
     id1 = int(tuple1[0])
@@ -404,31 +434,31 @@ def aruco_path_for_two(tuple1, tuple2):
     x2 = float(tuple2[1])
     id2 = int(tuple2[0])
     
-    if(min(dis1,dis2)>=7.0):
-        rospy.loginfo("8 er beshi distance so ektar dike agaitese")
-        if(findOnce):
-            rospy.loginfo("2 ta aruco ekbar paise so theme gese")
-            # publish_custom_data((1500,1500))
-            pub1.publish("[01500,11500]")
-            return
-        if(dis1>dis2):
-            rospy.loginfo("beshi dist jetar shedike jaitese")
-            aruco_path_for_one(tuple1)
-        else:
-            aruco_path_for_one(tuple2)
+    # if(min(dis1,dis2)>=7.0):
+    #     rospy.loginfo("8 er beshi distance so ektar dike agaitese")
+    #     if(findOnce):
+    #         rospy.loginfo("2 ta aruco ekbar paise so theme gese")
+    #         # publish_custom_data((1500,1500))
+    #         pub1.publish("[01500,11500]")
+    #         return
+    #     if(dis1>dis2):
+    #         rospy.loginfo("beshi dist jetar shedike jaitese")
+    #         aruco_path_for_one(tuple1)
+    #     else:
+    #         aruco_path_for_one(tuple2)
 
-        return
+    #     return
 
     x = (x1 + x2)/2
     global OBSTACLE_AVOIDANCE_FLAG
-    if(dis1<=4 or dis2<=4):
-        rospy.loginfo("6 er kom distance 2 ta aruco er jekono ekta so theme jabe")
-        # needs to align
-        # print(x)
-        OBSTACLE_AVOIDANCE_FLAG=True
-        obstacleAvoidance()
-        #publish_custom_data((1500,1500))
-        return
+    # if(dis1<=4 or dis2<=4):
+    #     rospy.loginfo("6 er kom distance 2 ta aruco er jekono ekta so theme jabe")
+    #     # needs to align
+    #     # print(x)
+    #     OBSTACLE_AVOIDANCE_FLAG=True
+    #     obstacleAvoidance()
+    #     #publish_custom_data((1500,1500))
+    #     return
     
     print(x1, x2, x,dis1,dis2)
     findOnce = True
@@ -441,18 +471,20 @@ def aruco_path_for_two(tuple1, tuple2):
     elif x < -350:
         left = 1400
         right = 1600
-    elif x > 60:
-        right = int(1700 - map_(x))
-        left = int(1500 + map_(x))
+    # elif x > 60:
+    #     right = int(1700 - map_(x))
+    #     left = int(1500 + map_(x))
     
         
-    elif x < -60:
-        left = int(1700 - map_(x))
-        right = int(1500 + map_(x))
+    # elif x < -60:
+    #     left = int(1700 - map_(x))
+    #     right = int(1500 + map_(x))
         
+    # else:
+    #     right = 1700
+    #     left = 1700
     else:
-        right = 1700
-        left = 1700
+        OBSTACLE_AVOIDANCE_FLAG = True
 
     # After processing, publish custom data
     # publish_custom_data((left, right))
@@ -460,6 +492,8 @@ def aruco_path_for_two(tuple1, tuple2):
     if((left==1600 and right==1400) or (left==1400 and right==1600)):
             time.sleep(0.5)
             pub1.publish("[01500,11500]")
+
+    pass
 
 last_waypoint = None
 
@@ -484,6 +518,8 @@ def safe():
     pub2.publish("disconnected")
     rospy.signal_shutdown("Exiting")
     pub1.publish("[01500,11500]")
+    ser.close()
+
 lastArCodeSearch = 0
 def aruco_detect_callback(msg):
     global lastArCodeSearch
@@ -519,7 +555,7 @@ def lidar_callback(msg):
 def ar_part():
     if(OBSTACLE_AVOIDANCE_FLAG):
         return
-    
+    color.publish('yellow')
     
     rospy.loginfo("check if aruco is in front")
     print(tups)
@@ -540,11 +576,54 @@ def ar_part():
             tups.clear()
         elif(len(localTups)==1):
             rospy.loginfo("find one move to that direction")
-            aruco_path_for_one(localTups[0]);
+            # aruco_path_for_one(localTups[0]);
             print(localTups[0])
             tups.clear();
+
+
+
+
     ar_part()
-        
+
+
+def decode_body(msg_id, body):
+    if msg_id == 0x00:
+        return "Acknowledge", {}
+    elif msg_id == 0x01:
+        armed = struct.unpack('>B', body)[0]
+        return "ArmDisarm", {"armed": armed}
+    elif msg_id == 0x02:
+        latitude, longitude = struct.unpack('>dd', body)
+        return "NavigateToGPS", {"latitude": latitude, "longitude": longitude}
+    elif msg_id == 0x03:
+        return "TaskCompleted", {}
+    elif msg_id == 0x04:
+        stage_id = struct.unpack('>B', body)[0]
+        return "SetStage", {"stage_id": stage_id}
+    elif msg_id == 0x05:
+        text_message = body.decode('utf-8')
+        return "Text", {"text_message": text_message}
+    elif msg_id == 0x06:
+        tag_id, dictionary = struct.unpack('>IB', body)
+        return "ArucoTag", {"tag_id": tag_id, "dictionary": dictionary}
+    elif msg_id == 0x07:
+        tags = [struct.unpack('>IB', body[i:i+5]) for i in range(0, len(body), 5)]
+        tag_list = [{"tag_id": t[0], "dictionary": t[1]} for t in tags]
+        return "LocateArucoTags", {"tag_list": tag_list}
+    elif msg_id == 0x08:
+        x, y, z = struct.unpack('>fff', body[:12])
+        reference = body[12:].decode('utf-8') if len(body) > 12 else ''
+        return "Location3D", {"x": x, "y": y, "z": z, "reference": reference}
+    elif msg_id == 0x09:
+        distance = struct.unpack('>f', body[:4])[0]
+        color = body[4:].decode('utf-8') if len(body) > 4 else ''
+        return "Detection", {"distance": distance, "description": color}
+    elif msg_id == 0x0A:
+        yaml_dict = body.decode('utf-8')
+        return "SetParameters", {"yaml_serialized_dict": yaml_dict}
+    else:
+        return "Unknown", {}
+
             
 
     
@@ -600,6 +679,7 @@ def main():
             rospy.loginfo("Mission started successfully")
 
             send_message(ser, 0x00, b'')
+            color.publish('yellow')
         elif msg_id == 0x0A: # 1. SetParameters(params)
             yaml_dict = body.decode('utf-8')
             print(f"Received YAML serialized dict: {yaml_dict}")
@@ -610,25 +690,43 @@ def main():
             print(f"Received Stage ID: {stage_id}")
             
             current_stage = stage_id
+            if(stage_id==1):
+                color.publish('red')
+            else:
+                color.publish('green')
             
             send_message(ser, 0x00, b'') #4. Acknowledge
+            if(stage_id==1):
+                color.publish('red')
+            else:
+                color.publish('green')
         elif msg_id == 0x06:
             tag_id, dictionary = struct.unpack('>IB', body)
             print(f"Received Aruco Tag: {tag_id}, Dictionary: {dictionary}")
-            global ar_move
-            ar_move = True
+            # global ar_move
+            # ar_move = True
             
             send_message(ser, 0x00, b'')
+            # ar_part()
+        elif msg_id == 0x07:
+            tags = [struct.unpack('>IB', body[i:i+5]) for i in range(0, len(body), 5)]
+            tag_list = [{"tag_id": t[0], "dictionary": t[1]} for t in tags]
+            print(f"Received Aruco Tags: {tag_list}")
+            global ar_move
+            ar_move = True
+            send_message(ser, 0x00, b'')
+            color.publish('yellow')
             ar_part()
         elif msg_id == 0x01: # 5. ArmDisarm(arm=True)
             armed = struct.unpack('>B', body)[0]
             arm_status = bool(armed) 
             print(f"Received Arm/Disarm command: {armed}")
+            color.publish('green')
             send_message(ser, 0x00, b'') #6. Acknowledge
+            color.publish('green')
         else:
             print("Unexpected message received")
-    finally:
-        ser.close()
+
 
     rospy.spin()
 
