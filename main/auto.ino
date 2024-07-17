@@ -146,7 +146,7 @@ void box1(int panval)
     else if (panval == 2000)
     {
 
-        boxservo1.write(180);
+        boxservo1.write(90);
     }
 }
 
@@ -157,7 +157,7 @@ void box2(int tiltval)
     {
         tiltpos++;
 
-        boxservo2.write(180);
+        boxservo2.write(90);
     }
 
     else if (tiltval == 1000)
@@ -485,7 +485,7 @@ void setup()
     dht.begin();
     bangladeshFlag();
     pinMode(relayPin, OUTPUT);
-    digitalWrite(relayPin, HIGH);
+    digitalWrite(relayPin, LOW);
     nh.getHardware()->setBaud(115200);
     nh.advertise(pub1);
     pinMode(14, INPUT_PULLUP);
@@ -658,6 +658,14 @@ void loop()
     // {
     //     get_sbus();
     // }
+
+    // box1(2000);
+    // box2(2000);
+    // delay(2000);
+    // box1(1000);
+    // box2(1000);
+    // delay(2000);
+
     handleUtils();
     delay(0.01);
     // if (!nh.connected() && failsafe)  // serial off and failsafe on
@@ -851,101 +859,3 @@ int last_success = 0;
 int last_fail = 0;
 bool failed = false;
 bool success = false;
-
-void get_sbus()
-{
-    if (sbus_rx.Read())
-    {
-        /* Grab the received data */
-        data = sbus_rx.data();
-        int tmp = failsafe;
-        failsafe = data.failsafe;
-        // Serial.println(failsafe);
-        if (failsafe)
-        {
-            last_fail = millis();
-            if (last_fail - last_success > 1000)
-            {
-                if (!failed)
-                {
-                    bangladeshFlag(); // show bangladesh flag
-                    failed = true;
-                    success = false;
-                }
-                ST.motor(MOTOR1, 0);
-                ST.motor(MOTOR2, 0);
-                ST_ARM.motor(1, 0);
-                ST_ARM.motor(2, 0);
-                // handleUtils();
-                failsafe_bck = tmp;
-            }
-            return;
-        }
-        last_success = millis();
-        if (last_success - last_fail < 1000)
-            return;
-        if (!success)
-        {
-            showGreen();
-        }
-        success = true;
-        failed = false;
-        /* Display the received data */
-        int ar = map(data.ch[8], 173, 1810, 1000, 2000);
-        int md = map(data.ch[5], 173, 1810, 1000, 2000);
-        if (abs(md - 1500) <= 3)
-        {
-            mode = 1;
-        }
-        else if (abs(md - 1000) <= 3)
-        {
-            mode = 2;
-        }
-        else if (abs(md - 2000) <= 3)
-        {
-            mode = 3;
-        }
-        if (abs(ar - 1000) <= 3)
-        {
-            controlMotor(1500, 1500);
-            disarm = true;
-
-            for (int i = 0; i < 29; i++)
-            {
-                if (i == 10 && mode == 3)
-                    continue;
-                chVal[i] = 1500;
-            }
-            ST_ARM.motor(1, constrain(map(1500, 1000, 2000, 100, -100), -100, 100));
-            ST_ARM.motor(2, constrain(map(1500, 1000, 2000, 100, -100), -100, 100));
-            chVal[5] = 1500;
-            chVal[9] = 1500;
-            handleUtils();
-            showRed();
-            return;
-        }
-        else
-        {
-            if (disarm)
-            {
-                panpos1 = 45;
-                tiltpos1 = 75;
-                tilt.write(tiltpos1);
-                disarm = false;
-                showGreen();
-            }
-        }
-        chVal[1] = map(data.ch[0], 173, 1810, 1000, 2000);
-        chVal[2] = map(data.ch[1], 173, 1810, 1000, 2000);
-        chVal[3] = map(data.ch[2], 175, 1810, 1000, 2000);
-        chVal[4] = map(data.ch[3], 173, 1810, 1000, 2000);
-        chVal[9] = map(data.ch[4], 173, 1810, 1000, 2000);
-        chVal[10] = map(data.ch[6], 173, 1810, 1000, 2000);
-        // chVal[8] = map(data.ch[7], 210, 1750, 950, 2000);
-        // chVal[9] = map(data.ch[8], 210, 1750, 950, 2000);
-        // chVal[10] = map(data.ch[9], 210, 1750, 950, 2000);
-        int gOf = map(data.ch[10], 173, 1810, 1000, 2000);
-        int gOn = map(data.ch[11], 173, 1810, 1000, 2000);
-        // chVal[13] = map(data.ch[12], 210, 1750, 950, 2000);
-        // chVal[14] = map(data.ch[13], 210, 1750, 950, 2000);
-        // chVal[15] = map(

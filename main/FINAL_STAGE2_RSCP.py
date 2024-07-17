@@ -20,7 +20,8 @@ import math
 rospy.init_node('mission_upload_start')
 pub = rospy.Publisher('/drop', String, queue_size=10)
 color = rospy.Publisher('/color',String,queue_size=1)
-crc16 = crcmod.mkCrcFun(0x11021, initCrc=0xFFFF, rev=False, xorOut=0x0000)
+import crc
+
 
 latitude = 0
 longitude = 0
@@ -41,7 +42,7 @@ def encode_message(msg_id, body):
     start_byte = 0x7E
     body_length = len(body)
     frame = struct.pack('>BBB', start_byte, msg_id, body_length) + body
-    checksum = crc16(frame)
+    checksum = crc.Calculator(crc.Crc16.XMODEM.value).checksum(frame)
     frame += struct.pack('>H', checksum)
     return frame
 
@@ -53,11 +54,17 @@ def send_message(serial_port, msg_id, body):
 def decode_message(frame):
     start_byte, msg_id, body_length = struct.unpack('>BBB', frame[:3])
     body = frame[3:-2]
+    # received_checksum = struct.unpack('>H', frame[-2:])[0]
     received_checksum = struct.unpack('>H', frame[-2:])[0]
-    calculated_checksum = crc16(frame[:-2])
+    print(received_checksum)
+    print(frame[:-2])
+    calculated_checksum =  crc.Calculator(crc.Crc16.XMODEM.value).checksum(frame[:-2])
+
+    print(calculated_checksum)
     
     if received_checksum != calculated_checksum:
-        raise ValueError("Checksum does not match")
+        print("Checksum does not match")
+        return None, None
 
     return msg_id, body
 
@@ -236,14 +243,20 @@ def obstacleAvoidance():
         if(front_distance<1):
             if(left_distance>right_distance):
                 # publish_custom_data((1800,1100))
-                pub1.publish("[01700,11200]")
+                if(arm_status):
+                    pub1.publish("[01700,11200]")
+                else:
+                    pub1.publish("[01500,11500]")
                 
                 rospy.loginfo("left_distance>right_distance")
                 
                 return
             else:
                 # publish_custom_data((1100,1800))
-                pub1.publish("[01200,11700]")
+                if(arm_status):
+                    pub1.publish("[01200,11700]")
+                else:
+                    pub1.publish("[01500,11500]")
                 
                 rospy.loginfo("left_distance>right_distance_else")
 
@@ -285,8 +298,11 @@ def obstacleAvoidance():
             r_speed = forward_speed
             rospy.loginfo("here")
 
-        # publish_custom_data((l_speed,r_speed))    
-        pub1.publish("[0"+str(l_speed)+",1"+str(r_speed) +"]")   
+        # publish_custom_data((l_speed,r_speed))   
+        if(arm_status): 
+            pub1.publish("[0"+str(l_speed)+",1"+str(r_speed) +"]")  
+        else:
+            pub1.publish("[01500,11500]") 
 
         # pub1.publish("[0"+str(r_speed)+",1"+str(l_speed) +"]")
         # if((l_speed==1200 and r_speed==1700) or (l_speed==1700 and r_speed==1200)):
@@ -339,35 +355,6 @@ def aruco_path_for_one(tuple):
     x = float(tuple[1])
     id = int(tuple[0])
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
     if(dis<2):
         OBSTACLE_AVOIDANCE_FLAG = True
         return
@@ -376,7 +363,10 @@ def aruco_path_for_one(tuple):
         
         # publish_custom_data((1200,1800));
         rospy.loginfo('here is the issue')
-        pub1.publish("[01600,11400]")
+        if(arm_status):
+            pub1.publish("[01600,11400]")
+        else:
+            pub1.publish("[01500,11500]")
 
         time.sleep(1)
         pub1.publish("[01500,01500]");
@@ -413,7 +403,10 @@ def aruco_path_for_one(tuple):
         rospy.loginfo("ekta aruco er dike agaitese")
         # After processing, publish custom data
         # publish_custom_data((left, right))
-        pub1.publish("[0"+str(left)+",1"+str(right)+"]")
+        if(arm_status):
+            pub1.publish("[0"+str(left)+",1"+str(right)+"]")
+        else:
+            pub1.publish("[01500,11500]")
         time.sleep(0.5)
         if((left==1600 and right==1400) or (left==1400 and right==1600)):
             time.sleep(0.5)
@@ -488,7 +481,10 @@ def aruco_path_for_two(tuple1, tuple2):
 
     # After processing, publish custom data
     # publish_custom_data((left, right))
-    pub1.publish("[0"+str(left)+",1"+str(right)+"]")
+    if(arm_status):
+        pub1.publish("[0"+str(left)+",1"+str(right)+"]")
+    else:
+        pub1.publish("[01500,11500]")
     if((left==1600 and right==1400) or (left==1400 and right==1600)):
             time.sleep(0.5)
             pub1.publish("[01500,11500]")
@@ -562,9 +558,13 @@ def ar_part():
     time.sleep(1)
     if(time.time()-lastArCodeSearch>3 or len(tups)==0):
         rospy.loginfo("rotating")
-        pub1.publish("[01700,11300]")
+        if(arm_status):
+            # publish_custom_data((1500,1500)
+            pub1.publish("[01700,11300]")
+        else:
+            # publish_custom_data((1500,1500))
+            pub1.publish("[01500,11500]")
         time.sleep(1)
-        
         pub1.publish("[01500,11500]")
         time.sleep(1)
         pass
@@ -718,12 +718,20 @@ def main():
             color.publish('yellow')
             ar_part()
         elif msg_id == 0x01: # 5. ArmDisarm(arm=True)
+            global arm_status
             armed = struct.unpack('>B', body)[0]
             arm_status = bool(armed) 
             print(f"Received Arm/Disarm command: {armed}")
-            color.publish('green')
+            if(arm_status):
+                color.publish('green')
+            else:
+                color.publish('red')
+                pub1.publish("[01500,11500]")
             send_message(ser, 0x00, b'') #6. Acknowledge
-            color.publish('green')
+            if(arm_status):
+                color.publish('green')
+            else:
+                color.publish('red')
         else:
             print("Unexpected message received")
 

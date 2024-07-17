@@ -3,15 +3,17 @@ import crcmod
 import serial
 import time
 
+import crc
+
 
 # CRC-16-CCITT calculation function
-crc16 = crcmod.mkCrcFun(0x11021, initCrc=0xFFFF, rev=False, xorOut=0x0000)
+# crc16 = crcmod.mkCrcFun(0x1021, initCrc=0x0000, rev=False, xorOut=0x0000)
 
 def encode_message(msg_id, body):
     start_byte = 0x7E
     body_length = len(body)
     frame = struct.pack('>BBB', start_byte, msg_id, body_length) + body
-    checksum = crc16(frame)
+    checksum = crc.Calculator(crc.Crc16.XMODEM.value).checksum(frame)
     frame += struct.pack('>H', checksum)
     return frame
 
@@ -23,14 +25,20 @@ def send_message(serial_port, msg_id, body):
 def decode_message(frame):
     start_byte, msg_id, body_length = struct.unpack('>BBB', frame[:3])
     body = frame[3:-2]
+    # received_checksum = struct.unpack('>H', frame[-2:])[0]
     received_checksum = struct.unpack('>H', frame[-2:])[0]
-    calculated_checksum = crc16(frame[:-2])
+    print(received_checksum)
+    print(frame[:-2])
+    calculated_checksum =  crc.Calculator(crc.Crc16.XMODEM.value).checksum(frame[:-2])
+
+    print(calculated_checksum)
     
     if received_checksum != calculated_checksum:
         raise ValueError("Checksum does not match")
 
     return msg_id, body
 
+# decode_message(b"\x7E\x22\x03\x01\x02\x03")
 def decode_body(msg_id, body):
     if msg_id == 0x00:
         return "Acknowledge", {}
@@ -73,10 +81,12 @@ def read_message(serial_port):
     while True:
         if serial_port.read(1) == b'\x7E':
             msg_id = serial_port.read(1)
+            print(f"Received Message ID: {msg_id.hex()}")
             body_length = serial_port.read(1)
             body = serial_port.read(ord(body_length))
             checksum = serial_port.read(2)
             frame = b'\x7E' + msg_id + body_length + body + checksum
+            print(frame)
             return decode_message(frame)
 
 def choose_message_type():
@@ -140,7 +150,7 @@ def get_message_data(choice):
         return 0x0A, yaml_dict.encode('utf-8')
 
 def main():
-    port = '/dev/ttyUSB1'  # Replace with your serial port
+    port = '/dev/ttyUSB0'  # Replace with your serial port
     baud_rate = 115200  # Replace with your baud rate
     
     # Open serial port
@@ -174,6 +184,7 @@ def main():
             
             elif choice == '2':
                 msg_id, body = read_message(ser)
+                print(f"Received Message: {msg_id} {body}")
                 msg_type, decoded_body = decode_body(msg_id, body)
                 print(f"Received Message Type: {msg_type}, Decoded Body: {decoded_body}")
             else:
