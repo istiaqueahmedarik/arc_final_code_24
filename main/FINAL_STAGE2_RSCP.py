@@ -644,7 +644,7 @@ def main():
 
    
 
-    try:
+    while(True):
         msg_id, body = read_message(ser)
         if msg_id == 0x02:  # NavigateToGPS message NavigateToGPS(lat1,lon1)
             latitude1, longitude1 = struct.unpack('>dd', body)
@@ -728,7 +728,7 @@ def main():
             print("Unexpected message received")
 
 
-    rospy.spin()
+    # rospy.spin()
 
 if __name__ == "__main__":
     main()
